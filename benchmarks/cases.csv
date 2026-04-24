@@ -1,0 +1,12 @@
+case_id,enabled,family,mode,dtype,mask,batch_size,s_q,s_k,h_q,h_kv,head_dim,window_size,page_size,block_size,causal,notes
+train_s128_fp16,1,training,fwd_bwd,fp16,causal,4,128,128,32,32,128,0,0,0,1,"short-context training baseline"
+train_s512_fp16,1,training,fwd_bwd,fp16,causal,4,512,512,32,32,128,0,0,0,1,"medium-context training baseline"
+train_s2k_fp16,1,training,fwd_bwd,fp16,causal,4,2048,2048,32,32,128,0,0,0,1,"important dense flash comparison point"
+train_s8k_bf16,1,training,fwd_bwd,bf16,causal,2,8192,8192,32,32,128,0,0,0,1,"long-context training on exact attention"
+gqa_s2k_bf16,1,gqa,fwd_bwd,bf16,causal,4,2048,2048,32,8,128,0,0,0,1,"modern grouped-query layout"
+window_s8k_w256,1,sliding_window,fwd_bwd,bf16,sliding_window,2,8192,8192,32,32,128,256,0,0,1,"windowed local attention"
+window_s8k_w512,1,sliding_window,fwd_bwd,bf16,sliding_window,2,8192,8192,32,32,128,512,0,0,1,"larger local window"
+decode_s1_k2k_fp16,1,decode,decode,fp16,causal,32,1,2048,32,8,128,0,256,0,1,"decode-stage short KV cache"
+decode_s1_k8k_fp16,1,decode,decode,fp16,causal,32,1,8192,32,8,128,0,256,0,1,"decode-stage medium KV cache"
+decode_s1_k32k_bf16,1,decode,decode,bf16,causal,32,1,32768,32,8,128,0,256,0,1,"decode-stage long KV cache"
+decode_s1_k128k_bf16,1,decode,decode,bf16,causal,16,1,131072,32,8,128,0,256,0,1,"stress paged attention and split-k decode"

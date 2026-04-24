@@ -1,0 +1,5 @@
+run_id,timestamp,device_name,operator_id,case_id,backend,mode,dtype,is_correct,max_abs_err,max_rel_err,runtime_ms,throughput_tflops,estimated_flops,estimated_hbm_bytes,arithmetic_intensity,math_mfu,tensorcore_mfu,max_memory_mb,occupancy_estimate,bound_guess,main_bottleneck,next_optimization,notes
+example_run_001,YYYY-MM-DDTHH:MM:SS,RTX5090,torch_sdpa_ref,train_s2k_fp16,pytorch,fwd_bwd,fp16,1,0,0,,,,,,,,,,reference,baseline,"fill after first benchmark"
+example_run_002,YYYY-MM-DDTHH:MM:SS,RTX5090,naive_sdpa,train_s2k_fp16,triton,fwd_bwd,fp16,1,0,0,,,,,,,,,,memory,score_materialization,"baseline roofline point"
+example_run_003,YYYY-MM-DDTHH:MM:SS,RTX5090,flash_v1_fwd,train_s2k_fp16,triton,fwd,fp16,1,0,0,,,,,,,,,,mixed,tile_tuning,"first flash milestone"
+example_run_004,YYYY-MM-DDTHH:MM:SS,RTX5090,paged_attention_decode,decode_s1_k32k_bf16,triton,decode,bf16,1,0,0,,,,,,,,,,memory,kv_cache_indirection,"decode benchmark anchor"
