@@ -37,3 +37,132 @@ attention kernel family on RTX 5090.
   `grouped_query_attention`, `sliding_window_attention`, `paged_attention`
 - CUDA:
   `flash_v2_full`, `paged_attention_decode`
+
+## Scaffold Status
+
+The repository now includes a runnable Python benchmark scaffold:
+
+- `attentions/`
+  Core package with CSV config loading, operator registry, reference kernels,
+  metrics, and benchmark runner.
+- `scripts/run_benchmarks.py`
+  Thin entrypoint for local runs.
+- `pyproject.toml`
+  Package metadata and CLI registration for `attn-bench`.
+
+Current runnable operators:
+
+- `torch_sdpa_ref`
+- `naive_sdpa`
+
+The remaining operator ids are registered as placeholders so you can add a new
+kernel without changing the surrounding harness.
+
+## Quick Start
+
+Install the package in editable mode:
+
+```bash
+pip install -e .
+```
+
+## Running Benchmarks
+
+The benchmark runner supports filtering by operator id, case id, device, and
+output path.
+
+Show the current options:
+
+```bash
+attn-bench --help
+```
+
+Run a small CPU smoke benchmark on the implemented operators:
+
+```bash
+python scripts/run_benchmarks.py \
+  --operators torch_sdpa_ref naive_sdpa \
+  --cases cpu_smoke_fp32 \
+  --implemented-only \
+  --include-disabled \
+  --device cpu \
+  --warmup 1 \
+  --repeats 3
+```
+
+Run one enabled training case with the installed CLI:
+
+```bash
+attn-bench \
+  --operators torch_sdpa_ref naive_sdpa \
+  --cases train_s128_fp16 \
+  --implemented-only
+```
+
+Run all enabled implemented operators against all enabled cases:
+
+```bash
+attn-bench --implemented-only
+```
+
+Write results to a custom file:
+
+```bash
+attn-bench \
+  --operators torch_sdpa_ref naive_sdpa \
+  --cases train_s128_fp16 \
+  --implemented-only \
+  --output benchmarks/results/train_s128_fp16.csv
+```
+
+By default, results are written to
+`benchmarks/results/latest.csv`.
+
+Useful flags:
+
+- `--operators ...`
+  Only run the listed operator ids from `benchmarks/operators.csv`.
+- `--cases ...`
+  Only run the listed case ids from `benchmarks/cases.csv`.
+- `--implemented-only`
+  Skip placeholder operators that are registered but not implemented yet.
+- `--include-disabled`
+  Allow rows that are marked disabled in the CSV registries.
+- `--device cpu|cuda`
+  Override automatic device selection.
+- `--warmup N`
+  Number of warmup iterations before timing.
+- `--repeats N`
+  Number of timed iterations used to compute average runtime.
+- `--output PATH`
+  Output CSV path for the normalized benchmark results.
+- `--cpu-freq-ghz F`
+  Override the simple CPU peak-throughput estimator frequency.
+- `--cpu-core-count N`
+  Override the simple CPU peak-throughput estimator core count.
+- `--estimate-cpu-peak`
+  Opt in to the lightweight CPU peak estimator for MFU on CPU runs.
+- `--peak-tflops-fp16/--peak-tflops-bf16/--peak-tflops-fp32`
+  Manually override the theoretical peak used for MFU.
+
+## MFU Notes
+
+For CPU runs, the default behavior is conservative:
+
+- `math_mfu = na`
+- `tensorcore_mfu = na`
+
+This avoids pretending we know the CPU peak accurately during smoke tests.
+
+If you explicitly pass `--estimate-cpu-peak`, MFU uses a lightweight estimator
+based on:
+
+- core count
+- a default frequency heuristic, or `--cpu-freq-ghz`
+- SIMD width heuristic from the local architecture
+- a simple FMA-per-cycle assumption
+
+This is intentionally approximate. It is useful for rough comparison, but it
+is not a substitute for a carefully validated hardware peak model.
+
+For non-CPU runs, MFU is also `na` unless you pass explicit peak TFLOPS overrides.

@@ -19,6 +19,24 @@ attention kernels fairly.
 3. Run your benchmark harness for every enabled `(operator, case)` pair.
 4. Write normalized results into `results-template.csv` or a generated copy.
 
+## Current scaffold
+
+The code scaffold lives in `attentions/` and currently provides:
+
+- CSV-driven operator and case loading
+- runtime operator registry
+- PyTorch SDPA reference path
+- eager naive SDPA baseline
+- normalized result writing
+- one CLI for filtered benchmark runs
+
+As you add Triton or CUDA kernels, the intended flow is:
+
+1. Keep the metadata row in `operators.csv`.
+2. Add the implementation function under `attentions/operators/`.
+3. Register it in `attentions/operators/registry_builder.py`.
+4. Reuse the same cases and result schema.
+
 ## Registry principles
 
 - Keep operator metadata in `operators.csv`, not hard-coded in benchmark loops.
