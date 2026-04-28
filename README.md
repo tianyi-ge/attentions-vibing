@@ -99,6 +99,16 @@ attn-bench \
   --implemented-only
 ```
 
+Run the first Triton forward-only kernel against the forward-only benchmark case:
+
+```bash
+attn-bench \
+  --operators online_softmax_fwd torch_sdpa_ref \
+  --cases train_fwd_s128_fp16 \
+  --implemented-only \
+  --device cuda
+```
+
 Run all enabled implemented operators against all enabled cases:
 
 ```bash

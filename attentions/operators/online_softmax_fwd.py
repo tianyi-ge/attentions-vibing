@@ -1,0 +1,162 @@
+from __future__ import annotations
+
+import math
+
+import torch
+import triton
+import triton.language as tl
+
+
+@triton.jit
+def online_softmax_attn_fwd_kernel(
+    q_ptr, k_ptr, v_ptr, o_ptr,
+    stride_qb, stride_qh, stride_qm, stride_qd,
+    stride_kb, stride_kh, stride_kn, stride_kd,
+    stride_vb, stride_vh, stride_vn, stride_vd,
+    stride_ob, stride_oh, stride_om, stride_od,
+    H: tl.constexpr,
+    SCALE: tl.constexpr,
+    D: tl.constexpr,
+    BLOCK_QM: tl.constexpr,
+    BLOCK_KN: tl.constexpr,
+    BLOCK_D: tl.constexpr,
+    Sq, Sk,
+):
+    pid_m = tl.program_id(0)
+    pid_bh = tl.program_id(1)
+    bid = pid_bh // H
+    hid = pid_bh % H
+
+    # stride_qm is divided to chunks of size BLOCK_QM
+    # q_m_ids is the current row ids
+    q_m_ids = pid_m * BLOCK_QM + tl.arange(0, BLOCK_QM)
+    q_d_ids = tl.arange(0, BLOCK_D)
+    k_n_offsets = tl.arange(0, BLOCK_KN)
+
+    # calculate q ptrs for each position [BLOCK_QM, BLOCK_D]
+    q_ptrs = (
+        q_ptr
+        + bid * stride_qb
+        + hid * stride_qh
+        + q_m_ids[:, None] * stride_qm
+        + q_d_ids[None, :] * stride_qd
+    )
+    q_mask = (q_m_ids[:, None] < Sq) & (q_d_ids[None, :] < D)
+    q = tl.load(q_ptrs, mask=q_mask, other=0.0)
+    q = q * SCALE
+
+    max_so_far = tl.full((BLOCK_QM,), -float("inf"), dtype=tl.float32)
+    denom = tl.zeros((BLOCK_QM,), dtype=tl.float32)
+    numerator = tl.zeros((BLOCK_QM, BLOCK_D), dtype=tl.float32)
+
+    for start_kn in range(0, Sk, BLOCK_KN):
+        k_n_ids = start_kn + k_n_offsets
+        # [BLOCK_KN, BLOCK_D]
+        k_ptrs = (
+            k_ptr
+            + bid * stride_kb
+            + hid * stride_kh
+            + k_n_ids[:, None] * stride_kn
+            + q_d_ids[None, :] * stride_kd
+        )
+        v_ptrs = (
+            v_ptr
+            + bid * stride_vb
+            + hid * stride_vh
+            + k_n_ids[:, None] * stride_vn
+            + q_d_ids[None, :] * stride_vd
+        )
+        k_mask = (k_n_ids[:, None] < Sk) & (q_d_ids[None, :] < D)
+        v_mask = k_mask
+        k = tl.load(k_ptrs, mask=k_mask, other=0.0)
+        v = tl.load(v_ptrs, mask=v_mask, other=0.0)
+        # [BLOCK_QM, BLOCK_KN]
+        scores = tl.dot(q, tl.trans(k))
+        # remove elements out of boundary
+        scores = tl.where(
+            (q_m_ids[:, None] < Sq) & (k_n_ids[None, :] < Sk),
+            scores,
+            -float("inf"),
+        )
+
+        max_block = tl.max(scores, axis=1)
+        max_new = tl.maximum(max_so_far, max_block)
+        rescale_coeff = tl.exp(max_so_far - max_new)  # [BLOCK_QM]
+        # exp value of the current block
+        new_items = tl.exp(scores - max_new[:, None])
+
+        # sum(exp(zi - max_so_far)) * exp(max_so_far - max_new) = sum(exp(zi - max_new))
+        denom = denom * rescale_coeff + tl.sum(new_items, axis=1)
+        # O_i = softmax * V_j = sum_j[ exp(score_ij)/denom ] * V_j = sum_j[ exp(score_ij) * V_j / denom ]
+        numerator = numerator * rescale_coeff[:, None] + tl.dot(new_items, v)
+        max_so_far = max_new
+
+    o = numerator / denom[:, None]
+    o_ptrs = (
+        o_ptr
+        + bid * stride_ob
+        + hid * stride_oh
+        + q_m_ids[:, None] * stride_om
+        + q_d_ids[None, :] * stride_od
+    )
+    o_mask = (q_m_ids[:, None] < Sq) & (q_d_ids[None, :] < D)
+    tl.store(o_ptrs, o, mask=o_mask)
+
+
+def online_softmax_attention_forward(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    *,
+    causal: bool,
+    scale: float | None = None,
+    window_size: int = 0,
+    block_qm: int = 64,
+    block_kn: int = 64,
+) -> torch.Tensor:
+    if causal:
+        raise NotImplementedError("online_softmax_fwd Triton kernel does not support causal masking yet.")
+    if window_size:
+        raise NotImplementedError("online_softmax_fwd Triton kernel does not support sliding-window masking yet.")
+    if q.device.type != "cuda" or k.device.type != "cuda" or v.device.type != "cuda":
+        raise NotImplementedError("online_softmax_fwd Triton kernel requires CUDA tensors.")
+    if q.ndim != 4 or k.ndim != 4 or v.ndim != 4:
+        raise ValueError("Expected q, k, v to have shape [B, H, S, D].")
+    if q.shape[0] != k.shape[0] or q.shape[0] != v.shape[0]:
+        raise ValueError("Batch sizes of q, k, v must match.")
+    if q.shape[1] != k.shape[1] or q.shape[1] != v.shape[1]:
+        raise ValueError("This first Triton kernel only supports Hq == Hkv.")
+    if k.shape[2] != v.shape[2] or k.shape[3] != v.shape[3]:
+        raise ValueError("k and v must agree on sequence length and head dimension.")
+    if q.shape[3] != k.shape[3]:
+        raise ValueError("q and k must have the same head dimension.")
+
+    B, H, Sq, D = q.shape
+    _, _, Sk, _ = k.shape
+    if D > 128:
+        raise NotImplementedError("This first Triton kernel currently supports head_dim <= 128.")
+
+    q = q.contiguous()
+    k = k.contiguous()
+    v = v.contiguous()
+    o = torch.empty_like(q)
+    scale = scale if scale is not None else 1.0 / math.sqrt(D)
+    block_d = triton.next_power_of_2(D)
+    grid = (triton.cdiv(Sq, block_qm), B * H)
+
+    online_softmax_attn_fwd_kernel[grid](
+        q, k, v, o,
+        q.stride(0), q.stride(1), q.stride(2), q.stride(3),
+        k.stride(0), k.stride(1), k.stride(2), k.stride(3),
+        v.stride(0), v.stride(1), v.stride(2), v.stride(3),
+        o.stride(0), o.stride(1), o.stride(2), o.stride(3),
+        H=H,
+        SCALE=scale,
+        D=D,
+        BLOCK_QM=block_qm,
+        BLOCK_KN=block_kn,
+        BLOCK_D=block_d,
+        Sq=Sq,
+        Sk=Sk,
+    )
+    return o
