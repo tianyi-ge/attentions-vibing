@@ -193,6 +193,32 @@ By default, the script also writes:
 - a profiler summary table to `benchmarks/profiles/*.txt`
 - a Chrome trace to `benchmarks/profiles/*.json`
 
+For Nsight Compute, use the wrapper script to save both a `.ncu-rep` report and
+a text summary:
+
+```bash
+bash scripts/profile_ncu.sh online_softmax_fwd 512 512 128 fp16
+```
+
+Positional arguments are:
+
+1. `operator`
+2. `seq_q`
+3. `seq_k`
+4. `head_dim`
+5. `dtype`
+6. `batch_size` (optional, default `4`)
+7. `heads` (optional, default `32`)
+8. `warmup` (optional, default `5`)
+9. `steps` (optional, default `20`)
+10. `kernel_name` (optional, default empty)
+
+Example with an explicit kernel filter:
+
+```bash
+bash scripts/profile_ncu.sh online_softmax_fwd 512 512 128 fp16 4 32 5 20 online_softmax_attn_fwd_kernel
+```
+
 ## Scoreboard
 
 This section tracks milestone attention kernels against the same PyTorch SDPA
