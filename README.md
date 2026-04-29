@@ -200,6 +200,14 @@ a text summary:
 bash scripts/profile_ncu.sh online_softmax_fwd 512 512 128 fp16
 ```
 
+The wrapper also runs:
+
+```bash
+ncu --import your_report.ncu-rep --page details
+```
+
+and saves the imported details page to `benchmarks/profiles/*_ncu_details.txt`.
+
 Positional arguments are:
 
 1. `operator`
