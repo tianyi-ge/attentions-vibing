@@ -109,6 +109,16 @@ attn-bench \
   --device cuda
 ```
 
+Run a forward-only scaling sweep that is more useful for performance analysis:
+
+```bash
+attn-bench \
+  --operators torch_sdpa_ref online_softmax_fwd \
+  --cases train_fwd_s128_fp16 train_fwd_s512_fp16 train_fwd_s2k_fp16 train_fwd_s8k_bf16 \
+  --implemented-only \
+  --device cuda
+```
+
 Run all enabled implemented operators against all enabled cases:
 
 ```bash
@@ -154,6 +164,29 @@ Useful flags:
   Opt in to the lightweight CPU peak estimator for MFU on CPU runs.
 - `--peak-tflops-fp16/--peak-tflops-bf16/--peak-tflops-fp32`
   Manually override the theoretical peak used for MFU.
+
+## Profiling
+
+Use the profiler helper to compare PyTorch SDPA and the Triton kernel on the
+same shape:
+
+```bash
+python scripts/profile_attention.py \
+  --operator torch_sdpa_ref \
+  --seq-q 512 \
+  --seq-k 512 \
+  --head-dim 128 \
+  --dtype fp16
+```
+
+```bash
+python scripts/profile_attention.py \
+  --operator online_softmax_fwd \
+  --seq-q 512 \
+  --seq-k 512 \
+  --head-dim 128 \
+  --dtype fp16
+```
 
 ## MFU Notes
 
