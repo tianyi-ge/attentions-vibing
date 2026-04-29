@@ -71,7 +71,7 @@ def online_softmax_attn_fwd_kernel(
         k = tl.load(k_ptrs, mask=k_mask, other=0.0)
         v = tl.load(v_ptrs, mask=v_mask, other=0.0)
         # [BLOCK_QM, BLOCK_KN]
-        scores = tl.dot(q, tl.trans(k))
+        scores = tl.dot(q, tl.trans(k))  # fp16
         # remove elements out of boundary
         scores = tl.where(
             (q_m_ids[:, None] < Sq) & (k_n_ids[None, :] < Sk),
@@ -88,7 +88,7 @@ def online_softmax_attn_fwd_kernel(
         # sum(exp(zi - max_so_far)) * exp(max_so_far - max_new) = sum(exp(zi - max_new))
         denom = denom * rescale_coeff + tl.sum(new_items, axis=1)
         # O_i = softmax * V_j = sum_j[ exp(score_ij)/denom ] * V_j = sum_j[ exp(score_ij) * V_j / denom ]
-        numerator = numerator * rescale_coeff[:, None] + tl.dot(new_items, v)
+        numerator = numerator * rescale_coeff[:, None] + tl.dot(new_items, v.to(tl.float32))
         max_so_far = max_new
 
     o = numerator / denom[:, None]
@@ -141,7 +141,7 @@ def online_softmax_attention_forward(
     v = v.contiguous()
     o = torch.empty_like(q)
     scale = scale if scale is not None else 1.0 / math.sqrt(D)
-    block_d = triton.next_power_of_2(D)
+    block_d = triton.next_power_of_2(D)  # D is per-head dim, usually 64/128/256
     grid = (triton.cdiv(Sq, block_qm), B * H)
 
     online_softmax_attn_fwd_kernel[grid](
