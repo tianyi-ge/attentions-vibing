@@ -28,6 +28,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--steps", type=int, default=20)
     parser.add_argument("--sort-by", default="self_cuda_time_total")
     parser.add_argument("--row-limit", type=int, default=30)
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=ROOT / "benchmarks" / "profiles",
+        help="Directory where profiler artifacts will be written.",
+    )
     return parser.parse_args()
 
 
@@ -70,12 +76,25 @@ def main() -> None:
             del out
         torch.cuda.synchronize()
 
-    print(
-        prof.key_averages().table(
-            sort_by=args.sort_by,
-            row_limit=args.row_limit,
-        )
+    summary = prof.key_averages().table(
+        sort_by=args.sort_by,
+        row_limit=args.row_limit,
     )
+    print(summary)
+
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    stem = (
+        f"{args.operator}_b{args.batch_size}_h{args.heads}_"
+        f"sq{args.seq_q}_sk{args.seq_k}_d{args.head_dim}_{args.dtype}"
+    )
+    table_path = args.output_dir / f"{stem}.txt"
+    trace_path = args.output_dir / f"{stem}.json"
+
+    table_path.write_text(summary, encoding="utf-8")
+    prof.export_chrome_trace(str(trace_path))
+
+    print(f"\nSaved profiler table to {table_path}")
+    print(f"Saved chrome trace to {trace_path}")
 
 
 if __name__ == "__main__":

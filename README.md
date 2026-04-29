@@ -188,6 +188,11 @@ python scripts/profile_attention.py \
   --dtype fp16
 ```
 
+By default, the script also writes:
+
+- a profiler summary table to `benchmarks/profiles/*.txt`
+- a Chrome trace to `benchmarks/profiles/*.json`
+
 ## MFU Notes
 
 For CPU runs, the default behavior is conservative:
