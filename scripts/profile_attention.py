@@ -11,13 +11,14 @@ if str(ROOT) not in sys.path:
 import torch
 from torch.profiler import ProfilerActivity, profile
 
-from attentions.operators.online_softmax_fwd import online_softmax_attention_forward
+from attentions.operators.online_softmax_fwd_v1 import online_softmax_attention_forward_v1
+from attentions.operators.online_softmax_fwd_v2 import online_softmax_attention_forward_v2
 from attentions.operators.reference import torch_sdpa_reference
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Profile torch SDPA vs Triton online softmax attention.")
-    parser.add_argument("--operator", choices=["torch_sdpa_ref", "online_softmax_fwd"], required=True)
+    parser.add_argument("--operator", choices=["torch_sdpa_ref", "online_softmax_fwd_v1", "online_softmax_fwd_v2"], required=True)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--heads", type=int, default=32)
     parser.add_argument("--seq-q", type=int, default=128)
@@ -48,8 +49,10 @@ def make_tensors(args: argparse.Namespace) -> tuple[torch.Tensor, torch.Tensor, 
 def run_operator(name: str, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     if name == "torch_sdpa_ref":
         return torch_sdpa_reference(q, k, v, causal=False)
-    if name == "online_softmax_fwd":
-        return online_softmax_attention_forward(q, k, v, causal=False)
+    if name == "online_softmax_fwd_v1":
+        return online_softmax_attention_forward_v1(q, k, v, causal=False)
+    if name == "online_softmax_fwd_v2":
+        return online_softmax_attention_forward_v2(q, k, v, causal=False)
     raise ValueError(f"Unsupported operator: {name}")
 
 

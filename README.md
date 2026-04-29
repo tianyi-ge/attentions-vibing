@@ -33,7 +33,7 @@ attention kernel family on RTX 5090.
 ## Initial priorities
 
 - Triton:
-  `naive_sdpa`, `online_softmax_fwd`, `flash_v1_fwd`, `flash_v2_fwd_bwd`,
+  `naive_sdpa`, `online_softmax_fwd_v1`, `flash_v1_fwd`, `flash_v2_fwd_bwd`,
   `grouped_query_attention`, `sliding_window_attention`, `paged_attention`
 - CUDA:
   `flash_v2_full`, `paged_attention_decode`
@@ -57,6 +57,13 @@ Current runnable operators:
 
 The remaining operator ids are registered as placeholders so you can add a new
 kernel without changing the surrounding harness.
+
+Current online-softmax status:
+
+- `online_softmax_fwd_v1`
+  Archived v1 baseline
+- `online_softmax_fwd_v2`
+  Active fork for optimization work
 
 ## Quick Start
 
@@ -103,7 +110,7 @@ Run the first Triton forward-only kernel against the forward-only benchmark case
 
 ```bash
 attn-bench \
-  --operators online_softmax_fwd torch_sdpa_ref \
+  --operators online_softmax_fwd_v1 torch_sdpa_ref \
   --cases train_fwd_s128_fp16 \
   --implemented-only \
   --device cuda
@@ -113,7 +120,7 @@ Run a forward-only scaling sweep that is more useful for performance analysis:
 
 ```bash
 attn-bench \
-  --operators torch_sdpa_ref online_softmax_fwd \
+  --operators torch_sdpa_ref online_softmax_fwd_v1 \
   --cases train_fwd_s128_fp16 train_fwd_s512_fp16 train_fwd_s2k_fp16 train_fwd_s8k_bf16 \
   --implemented-only \
   --device cuda
@@ -181,7 +188,7 @@ python scripts/profile_attention.py \
 
 ```bash
 python scripts/profile_attention.py \
-  --operator online_softmax_fwd \
+  --operator online_softmax_fwd_v1 \
   --seq-q 512 \
   --seq-k 512 \
   --head-dim 128 \
@@ -197,7 +204,7 @@ For Nsight Compute, use the wrapper script to save both a `.ncu-rep` report and
 a text summary:
 
 ```bash
-bash scripts/profile_ncu.sh online_softmax_fwd 512 512 128 fp16
+bash scripts/profile_ncu.sh online_softmax_fwd_v1 512 512 128 fp16
 ```
 
 The wrapper also runs:
@@ -224,7 +231,7 @@ Positional arguments are:
 Example with an explicit kernel filter:
 
 ```bash
-bash scripts/profile_ncu.sh online_softmax_fwd 512 512 128 fp16 4 32 5 20 online_softmax_attn_fwd_kernel
+bash scripts/profile_ncu.sh online_softmax_fwd_v1 512 512 128 fp16 4 32 5 20 online_softmax_attn_fwd_kernel
 ```
 
 ## Scoreboard
@@ -256,13 +263,13 @@ Rules for this table:
 | Operator | S=128 fp16 | S=512 fp16 | S=2048 fp16 | S=8192 bf16 | Notes |
 | --- | ---: | ---: | ---: | ---: | --- |
 | `torch_sdpa_ref` | `0.014 ms` | `0.117 ms` | `1.364 ms` | `10.302 ms` | Baseline |
-| `online_softmax_fwd` | `0.025 ms (0.56x)` | `0.176 ms (0.66x)` | `2.332 ms (0.58x)` | `18.001 ms (0.57x)` | First Triton online-softmax kernel |
+| `online_softmax_fwd_v1` | `0.025 ms (0.56x)` | `0.176 ms (0.66x)` | `2.332 ms (0.58x)` | `18.001 ms (0.57x)` | Archived Triton v1 baseline |
 
 ### Correctness
 
 | Operator | S=128 | S=512 | S=2048 | S=8192 |
 | --- | --- | --- | --- | --- |
-| `online_softmax_fwd` | pass | pass | pass | pass |
+| `online_softmax_fwd_v1` | pass | pass | pass | pass |
 
 ## MFU Notes
 

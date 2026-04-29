@@ -103,7 +103,7 @@ def online_softmax_attn_fwd_kernel(
     tl.store(o_ptrs, o, mask=o_mask)
 
 
-def online_softmax_attention_forward(
+def online_softmax_attention_forward_v1(
     q: torch.Tensor,
     k: torch.Tensor,
     v: torch.Tensor,
@@ -115,11 +115,11 @@ def online_softmax_attention_forward(
     block_kn: int = 64,
 ) -> torch.Tensor:
     if causal:
-        raise NotImplementedError("online_softmax_fwd Triton kernel does not support causal masking yet.")
+        raise NotImplementedError("online_softmax_fwd_v1 Triton kernel does not support causal masking yet.")
     if window_size:
-        raise NotImplementedError("online_softmax_fwd Triton kernel does not support sliding-window masking yet.")
+        raise NotImplementedError("online_softmax_fwd_v1 Triton kernel does not support sliding-window masking yet.")
     if q.device.type != "cuda" or k.device.type != "cuda" or v.device.type != "cuda":
-        raise NotImplementedError("online_softmax_fwd Triton kernel requires CUDA tensors.")
+        raise NotImplementedError("online_softmax_fwd_v1 Triton kernel requires CUDA tensors.")
     if q.ndim != 4 or k.ndim != 4 or v.ndim != 4:
         raise ValueError("Expected q, k, v to have shape [B, H, S, D].")
     if q.shape[0] != k.shape[0] or q.shape[0] != v.shape[0]:

@@ -8,7 +8,7 @@ from attentions.operators.reference import naive_sdpa_reference, torch_sdpa_refe
 from attentions.registry import OperatorRegistry, RuntimeOperator
 
 
-IMPLEMENTED_IDS = {"torch_sdpa_ref", "naive_sdpa", "online_softmax_fwd"}
+IMPLEMENTED_IDS = {"torch_sdpa_ref", "naive_sdpa", "online_softmax_fwd_v1", "online_softmax_fwd_v2"}
 
 
 def _resolve_fn(operator_id: str):
@@ -16,14 +16,22 @@ def _resolve_fn(operator_id: str):
         return torch_sdpa_reference, True, ""
     if operator_id == "naive_sdpa":
         return naive_sdpa_reference, True, "running eager math baseline until Triton kernel is added"
-    if operator_id == "online_softmax_fwd":
+    if operator_id == "online_softmax_fwd_v1":
         try:
-            from attentions.operators.online_softmax_fwd import online_softmax_attention_forward
+            from attentions.operators.online_softmax_fwd_v1 import online_softmax_attention_forward_v1
         except Exception as exc:
             return unavailable_operator, False, f"failed to import Triton kernel: {exc}"
         if not torch.cuda.is_available():
-            return unavailable_operator, False, "online_softmax_fwd requires a CUDA runtime"
-        return online_softmax_attention_forward, True, "first Triton online-softmax attention forward kernel"
+            return unavailable_operator, False, "online_softmax_fwd_v1 requires a CUDA runtime"
+        return online_softmax_attention_forward_v1, True, "archived v1 Triton online-softmax attention forward kernel"
+    if operator_id == "online_softmax_fwd_v2":
+        try:
+            from attentions.operators.online_softmax_fwd_v2 import online_softmax_attention_forward_v2
+        except Exception as exc:
+            return unavailable_operator, False, f"failed to import Triton kernel: {exc}"
+        if not torch.cuda.is_available():
+            return unavailable_operator, False, "online_softmax_fwd_v2 requires a CUDA runtime"
+        return online_softmax_attention_forward_v2, True, "forked v2 Triton online-softmax attention forward kernel"
     return unavailable_operator, False, "placeholder only; implementation will be added in a later stage"
 
 

@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 OUT_DIR="${ROOT_DIR}/benchmarks/profiles"
 
-OPERATOR="${1:-online_softmax_fwd}"
+OPERATOR="${1:-online_softmax_fwd_v1}"
 SEQ_Q="${2:-512}"
 SEQ_K="${3:-512}"
 HEAD_DIM="${4:-128}"
