@@ -14,22 +14,21 @@ BATCH_SIZE="${6:-4}"
 HEADS="${7:-32}"
 WARMUP="${8:-5}"
 STEPS="${9:-20}"
-KERNEL_NAME="${10:-}"
+KERNEL_NAME="${10:-online_softmax_attn_fwd_kernel}"
 
 mkdir -p "${OUT_DIR}"
 
 STEM="${OPERATOR}_b${BATCH_SIZE}_h${HEADS}_sq${SEQ_Q}_sk${SEQ_K}_d${HEAD_DIM}_${DTYPE}"
 REPORT_PATH="${OUT_DIR}/${STEM}"
-TEXT_PATH="${OUT_DIR}/${STEM}_ncu.txt"
 DETAILS_PATH="${OUT_DIR}/${STEM}_ncu_details.txt"
 
 echo "Writing Nsight Compute report to ${REPORT_PATH}.ncu-rep"
-echo "Writing text summary to ${TEXT_PATH}"
 echo "Writing imported details page to ${DETAILS_PATH}"
 
 NCU_ARGS=(
+  -f
   --target-processes all
-  --set speedOfLight
+  --set full
   --launch-skip "${WARMUP}"
   --launch-count 1
   --export "${REPORT_PATH}"
@@ -50,6 +49,6 @@ ncu \
     --head-dim "${HEAD_DIM}" \
     --dtype "${DTYPE}" \
     --warmup "${WARMUP}" \
-    --steps "${STEPS}" | tee "${TEXT_PATH}"
+    --steps "${STEPS}"
 
 ncu --import "${REPORT_PATH}.ncu-rep" --page details > "${DETAILS_PATH}"
