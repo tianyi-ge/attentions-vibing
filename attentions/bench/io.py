@@ -7,8 +7,6 @@ from typing import Iterable
 
 RESULT_FIELDNAMES = [
     "run_id",
-    "timestamp",
-    "device_name",
     "operator_id",
     "case_id",
     "backend",
@@ -26,10 +24,6 @@ RESULT_FIELDNAMES = [
     "tensorcore_mfu",
     "max_memory_mb",
     "occupancy_estimate",
-    "bound_guess",
-    "main_bottleneck",
-    "next_optimization",
-    "notes",
 ]
 
 

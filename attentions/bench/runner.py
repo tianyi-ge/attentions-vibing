@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
 import uuid
 import time
 
@@ -37,8 +36,6 @@ class BenchmarkTensors:
 @dataclass
 class BenchmarkResult:
     run_id: str
-    timestamp: str
-    device_name: str
     operator_id: str
     case_id: str
     backend: str
@@ -56,10 +53,6 @@ class BenchmarkResult:
     tensorcore_mfu: float | str
     max_memory_mb: float
     occupancy_estimate: str
-    bound_guess: str
-    main_bottleneck: str
-    next_optimization: str
-    notes: str
 
     def to_row(self) -> dict[str, object]:
         return asdict(self)
@@ -132,15 +125,11 @@ def run_benchmark_case(
     cpu_core_count: int | None = None,
 ) -> BenchmarkResult:
     can_run, reason = operator.supports_case(case)
-    timestamp = datetime.now(timezone.utc).isoformat()
     run_id = uuid.uuid4().hex[:12]
-    device_name = torch.cuda.get_device_name(device) if device.type == "cuda" else str(device)
 
     if not can_run:
         return BenchmarkResult(
             run_id=run_id,
-            timestamp=timestamp,
-            device_name=device_name,
             operator_id=operator.config.operator_id,
             case_id=case.case_id,
             backend=operator.config.backend,
@@ -158,10 +147,6 @@ def run_benchmark_case(
             tensorcore_mfu="na",
             max_memory_mb=0.0,
             occupancy_estimate="",
-            bound_guess="unsupported",
-            main_bottleneck="",
-            next_optimization="",
-            notes=reason,
         )
 
     tensors = make_tensors(case, device=device)
@@ -197,7 +182,7 @@ def run_benchmark_case(
     dtype_size = torch.tensor([], dtype=TORCH_DTYPES[case.dtype]).element_size()
     estimated_bytes = estimate_attention_hbm_bytes(case, dtype_size, materializes_scores=materializes_scores)
     achieved_tflops = throughput_tflops(estimated_flops, runtime_ms)
-    resolved_peaks, peak_source = resolve_peak_tflops_by_dtype(
+    resolved_peaks, _peak_source = resolve_peak_tflops_by_dtype(
         device_type=device.type,
         overrides=peak_tflops_by_dtype,
         estimate_cpu_peak=estimate_cpu_peak,
@@ -210,11 +195,8 @@ def run_benchmark_case(
         if device.type == "cuda"
         else 0.0
     )
-    bound_guess = "memory" if materializes_scores or case.mode == "decode" else "mixed"
     return BenchmarkResult(
         run_id=run_id,
-        timestamp=timestamp,
-        device_name=device_name,
         operator_id=operator.config.operator_id,
         case_id=case.case_id,
         backend=operator.config.backend,
@@ -232,10 +214,6 @@ def run_benchmark_case(
         tensorcore_mfu=math_mfu,
         max_memory_mb=peak_memory_mb,
         occupancy_estimate="",
-        bound_guess=bound_guess,
-        main_bottleneck="score_materialization" if materializes_scores else "",
-        next_optimization="move_to_triton" if operator.config.operator_id == "naive_sdpa" else "",
-        notes=_merge_notes(operator.availability_note, peak_source),
     )
 
 
@@ -265,7 +243,3 @@ def compare_outputs(output: torch.Tensor | None, reference: torch.Tensor | None)
     ref_abs = reference.detach().float().abs().clamp_min(1e-6)
     rel = diff / ref_abs
     return float(diff.max().item()), float(rel.max().item())
-
-
-def _merge_notes(*parts: str) -> str:
-    return " | ".join(part for part in parts if part)

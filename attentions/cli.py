@@ -35,11 +35,6 @@ def parse_args() -> argparse.Namespace:
         help="Where to write the normalized results CSV.",
     )
     parser.add_argument(
-        "--include-disabled",
-        action="store_true",
-        help="Run even disabled rows from the CSV registries.",
-    )
-    parser.add_argument(
         "--implemented-only",
         action="store_true",
         help="Only run operators that already have a callable implementation.",
@@ -61,9 +56,7 @@ def main() -> None:
     }
     operator_configs = load_operator_configs()
     case_configs = load_benchmark_cases()
-    if not args.include_disabled:
-        operator_configs = [config for config in operator_configs if config.enabled]
-        case_configs = [case for case in case_configs if case.enabled]
+    case_configs = [case for case in case_configs if case.enabled]
     if args.operators:
         requested = set(args.operators)
         operator_configs = [config for config in operator_configs if config.operator_id in requested]
@@ -92,7 +85,7 @@ def main() -> None:
             rows.append(result.to_row())
             print(
                 f"{result.operator_id:>24} | {result.case_id:>18} | "
-                f"correct={result.is_correct} | runtime_ms={result.runtime_ms:.3f} | notes={result.notes}"
+                f"correct={result.is_correct} | runtime_ms={result.runtime_ms:.3f}"
             )
     write_results_csv(args.output, rows)
     print(f"\nWrote {len(rows)} rows to {args.output}")

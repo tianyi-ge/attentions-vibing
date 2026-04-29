@@ -24,9 +24,6 @@ def _split_modes(raw: str) -> tuple[str, ...]:
 @dataclass(frozen=True)
 class OperatorConfig:
     operator_id: str
-    enabled: bool
-    priority: str
-    implementation_stage: str
     backend: str
     category: str
     mode: tuple[str, ...]
@@ -66,9 +63,6 @@ def load_operator_configs(path: Path = OPERATORS_CSV) -> list[OperatorConfig]:
         return [
             OperatorConfig(
                 operator_id=row["operator_id"],
-                enabled=_to_bool(row["enabled"]),
-                priority=row["priority"],
-                implementation_stage=row["implementation_stage"],
                 backend=row["backend"],
                 category=row["category"],
                 mode=_split_modes(row["mode"]),
@@ -111,5 +105,5 @@ def load_benchmark_cases(path: Path = CASES_CSV) -> list[BenchmarkCase]:
         ]
 
 
-def filter_enabled(items: Iterable[OperatorConfig | BenchmarkCase]) -> list[OperatorConfig | BenchmarkCase]:
+def filter_enabled(items: Iterable[BenchmarkCase]) -> list[BenchmarkCase]:
     return [item for item in items if item.enabled]
