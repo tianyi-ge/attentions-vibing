@@ -193,6 +193,43 @@ By default, the script also writes:
 - a profiler summary table to `benchmarks/profiles/*.txt`
 - a Chrome trace to `benchmarks/profiles/*.json`
 
+## Scoreboard
+
+This section tracks milestone attention kernels against the same PyTorch SDPA
+baseline on the same GPU.
+
+Rules for this table:
+
+- Baseline: `torch_sdpa_ref`
+- Device: `RTX 5090`
+- Mode: `fwd`
+- Metrics:
+  - `runtime_ms`: average latency per forward call
+  - `speedup_vs_torch`: `torch_runtime / operator_runtime`
+- Current scope: dense forward attention only
+
+### Benchmark Cases
+
+| Case | B | H | S_q | S_k | D | Dtype |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `train_fwd_s128_fp16` | 4 | 32 | 128 | 128 | 128 | fp16 |
+| `train_fwd_s512_fp16` | 4 | 32 | 512 | 512 | 128 | fp16 |
+| `train_fwd_s2k_fp16` | 4 | 32 | 2048 | 2048 | 128 | fp16 |
+| `train_fwd_s8k_bf16` | 2 | 32 | 8192 | 8192 | 128 | bf16 |
+
+### Runtime Scoreboard
+
+| Operator | S=128 fp16 | S=512 fp16 | S=2048 fp16 | S=8192 bf16 | Notes |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `torch_sdpa_ref` | `0.014 ms` | `0.117 ms` | `1.364 ms` | `10.302 ms` | Baseline |
+| `online_softmax_fwd` | `0.025 ms (0.56x)` | `0.176 ms (0.66x)` | `2.332 ms (0.58x)` | `18.001 ms (0.57x)` | First Triton online-softmax kernel |
+
+### Correctness
+
+| Operator | S=128 | S=512 | S=2048 | S=8192 |
+| --- | --- | --- | --- | --- |
+| `online_softmax_fwd` | pass | pass | pass | pass |
+
 ## MFU Notes
 
 For CPU runs, the default behavior is conservative:
