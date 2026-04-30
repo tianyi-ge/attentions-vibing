@@ -4,5 +4,24 @@ from attentions.operators.online_softmax_fwd_v1 import (
 )
 
 
-def online_softmax_attention_forward_v2(*args, **kwargs):
-    return online_softmax_attention_forward_v1(*args, **kwargs)
+def online_softmax_attention_forward_v2(
+    q,
+    k,
+    v,
+    *,
+    causal,
+    scale=None,
+    window_size=0,
+    block_qm=16,
+    block_kn=32,
+):
+    return online_softmax_attention_forward_v1(
+        q,
+        k,
+        v,
+        causal=causal,
+        scale=scale,
+        window_size=window_size,
+        block_qm=block_qm,
+        block_kn=block_kn,
+    )
