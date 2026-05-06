@@ -245,10 +245,10 @@ python scripts/autotune_online_softmax.py \
   --seq-q 512 \
   --seq-k 512 \
   --head-dim 128 \
-  --block-qm 16,32,64 \
-  --block-kn 16,32,64 \
+  --block-qm 16,32 \
+  --block-kn 16,32 \
   --num-warps 4,8 \
-  --num-stages 3,4
+  --num-stages 2,3
 ```
 
 The default operator is the latest online-softmax version, currently

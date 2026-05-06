@@ -12,11 +12,11 @@ def online_softmax_attention_forward_v2(
     causal,
     scale=None,
     window_size=0,
-    block_qm=16,
+    block_qm=32,
     block_kn=32,
     output_dtype=None,
-    num_warps=None,
-    num_stages=None,
+    num_warps=4,
+    num_stages=2,
 ):
     return online_softmax_attention_forward_v1(
         q,

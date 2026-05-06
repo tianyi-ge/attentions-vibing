@@ -72,6 +72,15 @@ Results:
 | `64 x 32` | `0.191 ms` | `2.530 ms` | Worst of the four |
 | `32 x 32` | `0.154 ms` | `2.143 ms` | Best current configuration |
 
+Autotune sweep with `num_warps in {4, 8}` and `num_stages in {2, 3}`:
+
+| Config `(BLOCK_QM, BLOCK_KN, warps, stages)` | S=512 fp16 | S=2048 fp16 | S=8192 fp16 | Notes |
+| --- | ---: | ---: | ---: | --- |
+| `32 x 32, 4, 2` | `0.143 ms` | `2.117 ms` | `35.149 ms` | Best across tested sequence lengths |
+| `32 x 32, 4, 3` | `0.148 ms` | `2.191 ms` | `36.215 ms` | Slightly slower; extra stage does not pay off |
+| `16 x 32, 4, 2` | `0.173 ms` | `2.660 ms` | `42.901 ms` | Smaller `BLOCK_QM` loses too much work per CTA |
+| `32 x 16, 4, 2` | `0.182 ms` | `2.742 ms` | `45.203 ms` | Smaller `BLOCK_KN` increases loop overhead |
+
 #### NCU Notes
 
 For the original heavier configuration:
@@ -91,7 +100,7 @@ Interpretation:
 - The kernel is resource-limited before it is DRAM-bandwidth-limited
 - Shrinking the block reduced both register pressure and shared-memory usage
 - `BLOCK_QM` is more sensitive than `BLOCK_KN` in this kernel
-- `32 x 32` is the current best default starting point for `v2`
+- `32 x 32` with `4` warps and `2` stages is the current best default for `v2`
 
 #### Next Questions
 
