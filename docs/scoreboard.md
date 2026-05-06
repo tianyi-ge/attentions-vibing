@@ -26,35 +26,43 @@ baseline on the same GPU, and keeps short tuning notes for each version.
 
 | Operator | S=128 fp16 | S=512 fp16 | S=2048 fp16 | S=8192 bf16 | Notes |
 | --- | ---: | ---: | ---: | ---: | --- |
-| `torch_sdpa_ref` | `0.014 ms` | `0.117 ms` | `1.364 ms` | `10.302 ms` | Baseline |
-| `online_softmax_fwd_v1` | `0.025 ms (0.56x)` | `0.176 ms (0.66x)` | `2.332 ms (0.58x)` | `18.001 ms (0.57x)` | Archived Triton v1 baseline |
+| `torch_sdpa_ref` | `0.012 ms` | `0.115 ms` | `1.376 ms` | `10.399 ms` | Baseline |
+| `online_softmax_fwd_v1` | `0.019 ms (0.66x)` | `0.173 ms (0.66x)` | `2.366 ms (0.58x)` | `18.173 ms (0.57x)` | Online-softmax baseline |
+| `online_softmax_fwd_v2` | `0.016 ms (0.80x)` | `0.111 ms (1.03x)` | `1.678 ms (0.82x)` | `13.157 ms (0.79x)` | Autotuned + low-precision `P @ V` |
 
 ## Correctness
 
 | Operator | S=128 | S=512 | S=2048 | S=8192 |
 | --- | --- | --- | --- | --- |
 | `online_softmax_fwd_v1` | pass | pass | pass | pass |
+| `online_softmax_fwd_v2` | pass | pass | pass | pass |
 
 ## Version Notes
 
 ### `online_softmax_fwd_v1`
 
-- Status: archived baseline
-- Summary:
-  - First Triton online-softmax forward kernel
+- Goal:
+  - Build the first exact dense attention Triton baseline without materializing `S_q x S_k`
+- Main optimizations:
+  - Online softmax recurrence keeps running row max, denominator, and numerator in fp32
+  - Streams over K/V blocks instead of storing the full score matrix
+- Notes:
   - Correctness passed on the forward-only dense cases above
-  - Stable but slower than PyTorch fused flash backend by about `1.5x-1.8x`
+  - Stable but slower than PyTorch fused flash backend
 - Key observations:
   - PyTorch baseline routes to a fused flash kernel
   - Main gap is kernel quality, not benchmark unfairness
 
 ### `online_softmax_fwd_v2`
 
-- Status: active optimization branch
 - Goal:
   - Reduce per-block resource usage
   - Raise occupancy
   - Close the performance gap vs `torch_sdpa_ref`
+- Main optimizations:
+  - Autotuned `BLOCK_QM`, `BLOCK_KN`, `num_warps`, and `num_stages`
+  - Set the current default to `32 x 32`, `4` warps, `2` stages
+  - Cast `P` to `V.dtype` before `P @ V` so the matmul uses low-precision tensor-core-friendly operands
 
 #### Block Sweep Notes
 
@@ -81,6 +89,29 @@ Autotune sweep with `num_warps in {4, 8}` and `num_stages in {2, 3}`:
 | `16 x 32, 4, 2` | `0.173 ms` | `2.660 ms` | `42.901 ms` | Smaller `BLOCK_QM` loses too much work per CTA |
 | `32 x 16, 4, 2` | `0.182 ms` | `2.742 ms` | `45.203 ms` | Smaller `BLOCK_KN` increases loop overhead |
 
+#### Dot Dtype Optimization
+
+The initial v2 path kept `P @ V` in a fp32-heavy form:
+
+```python
+tl.dot(new_items, v.to(tl.float32))
+```
+
+The optimized v2 path keeps the online softmax state in fp32, but casts
+`new_items` to `v.dtype` before the `P @ V` matmul:
+
+```python
+p = new_items.to(v.dtype)
+tl.dot(p, v)
+```
+
+| Workload | Before | After | Speedup |
+| --- | ---: | ---: | ---: |
+| S=512 fp16 | `0.143 ms` | `0.110 ms` | `1.30x` |
+| S=2048 fp16 | `2.117 ms` | `1.742 ms` | `1.22x` |
+| S=8192 fp16 | `35.149 ms` | `27.248 ms` | `1.29x` |
+| S=512 bf16 | n/a | `0.108 ms` | n/a |
+
 #### NCU Notes
 
 For the original heavier configuration:
@@ -101,9 +132,10 @@ Interpretation:
 - Shrinking the block reduced both register pressure and shared-memory usage
 - `BLOCK_QM` is more sensitive than `BLOCK_KN` in this kernel
 - `32 x 32` with `4` warps and `2` stages is the current best default for `v2`
+- `P @ V` should use the input value dtype for the dot operand; keeping it fp32 leaves too much tensor-core throughput on the table
 
 #### Next Questions
 
 - Can `32 x 32` be improved further without losing too much reuse?
-- Is `P @ V` in the current fp32-heavy path the next major bottleneck?
+- Does the `P @ V` dtype optimization reduce FP32 instruction pressure in NCU as expected?
 - How much more can occupancy rise before performance stops improving?
