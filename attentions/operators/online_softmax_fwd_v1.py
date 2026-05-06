@@ -113,6 +113,9 @@ def online_softmax_attention_forward_v1(
     window_size: int = 0,
     block_qm: int = 64,
     block_kn: int = 64,
+    output_dtype: torch.dtype | None = None,
+    num_warps: int | None = None,
+    num_stages: int | None = None,
 ) -> torch.Tensor:
     if causal:
         raise NotImplementedError("online_softmax_fwd_v1 Triton kernel does not support causal masking yet.")
@@ -139,10 +142,16 @@ def online_softmax_attention_forward_v1(
     q = q.contiguous()
     k = k.contiguous()
     v = v.contiguous()
-    o = torch.empty_like(q)
+    o_dtype = output_dtype if output_dtype is not None else q.dtype
+    o = torch.empty(q.shape, device=q.device, dtype=o_dtype)
     scale = scale if scale is not None else 1.0 / math.sqrt(D)
     block_d = triton.next_power_of_2(D)  # D is per-head dim, usually 64/128/256
     grid = (triton.cdiv(Sq, block_qm), B * H)
+    launch_kwargs = {}
+    if num_warps is not None:
+        launch_kwargs["num_warps"] = num_warps
+    if num_stages is not None:
+        launch_kwargs["num_stages"] = num_stages
 
     online_softmax_attn_fwd_kernel[grid](
         q, k, v, o,
@@ -158,5 +167,6 @@ def online_softmax_attention_forward_v1(
         BLOCK_D=block_d,
         Sq=Sq,
         Sk=Sk,
+        **launch_kwargs,
     )
     return o

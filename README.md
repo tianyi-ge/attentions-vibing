@@ -234,6 +234,29 @@ Example with an explicit kernel filter:
 bash scripts/profile_ncu.sh online_softmax_fwd_v1 512 512 128 fp16 4 32 5 20 online_softmax_attn_fwd_kernel
 ```
 
+## Autotuning
+
+Sweep `online_softmax_fwd_v2` launch parameters and write a ranked CSV:
+
+```bash
+python scripts/autotune_online_softmax.py \
+  --operator online_softmax_fwd_v2 \
+  --dtype fp16 \
+  --seq-q 512 \
+  --seq-k 512 \
+  --head-dim 128 \
+  --block-qm 16,32,64 \
+  --block-kn 16,32,64 \
+  --num-warps 4,8 \
+  --num-stages 3,4
+```
+
+The default operator is the latest online-softmax version, currently
+`online_softmax_fwd_v2`. The results are written to
+`benchmarks/results/autotune_online_softmax.csv`. For fp8 input experiments,
+run the same sweep with `--dtype fp8`; the script uses fp8 Q/K/V inputs and
+fp16 output for correctness comparison.
+
 ## Scoreboard
 
 The runtime scoreboard and version-by-version tuning notes live in

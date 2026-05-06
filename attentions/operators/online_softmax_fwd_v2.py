@@ -14,6 +14,9 @@ def online_softmax_attention_forward_v2(
     window_size=0,
     block_qm=16,
     block_kn=32,
+    output_dtype=None,
+    num_warps=None,
+    num_stages=None,
 ):
     return online_softmax_attention_forward_v1(
         q,
@@ -24,4 +27,7 @@ def online_softmax_attention_forward_v2(
         window_size=window_size,
         block_qm=block_qm,
         block_kn=block_kn,
+        output_dtype=output_dtype,
+        num_warps=num_warps,
+        num_stages=num_stages,
     )
