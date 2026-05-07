@@ -159,6 +159,7 @@ Interpretation:
 #### Next Questions
 
 - Can `32 x 32` be improved further without losing too much reuse?
+- Can a different work partition, such as split-K for long sequences, expose more parallelism without excessive partial-state reduction overhead?
 - Can the online-softmax fp32 dependency chain be shortened or better overlapped?
 - Can shared-memory bank conflicts be reduced with a different tile/layout?
 - How much more can occupancy rise before performance stops improving?
