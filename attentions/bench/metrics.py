@@ -6,6 +6,33 @@ import platform
 from attentions.config import BenchmarkCase
 
 
+RTX_5090_PEAK_TFLOPS = {
+    "fp32": 104.8,
+    # Dense low-precision Tensor Core estimate. Do not use marketing AI TOPS as MFU denominator.
+    "fp16": 419.0,
+    "bf16": 419.0,
+}
+
+
+def _detect_cuda_device_name() -> str:
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            return torch.cuda.get_device_name()
+    except Exception:
+        return ""
+    return ""
+
+
+def default_gpu_peak_tflops_by_dtype() -> tuple[dict[str, float], str]:
+    device_name = _detect_cuda_device_name()
+    normalized = device_name.lower().replace("geforce", "").replace("nvidia", "")
+    if "rtx 5090" in normalized:
+        return dict(RTX_5090_PEAK_TFLOPS), "rtx5090_default"
+    return {}, "unconfigured_peak"
+
+
 def _estimate_cpu_vector_bits() -> int:
     machine = platform.machine().lower()
     capability = ""
@@ -86,9 +113,14 @@ def resolve_peak_tflops_by_dtype(
             f"fma_units={_estimate_cpu_fma_units_per_core()})"
         )
         return estimated, source
+    defaults, source = default_gpu_peak_tflops_by_dtype()
+    has_device_defaults = bool(defaults)
+    defaults.update(peaks)
+    if peaks and has_device_defaults:
+        return defaults, f"{source}+manual_override"
     if peaks:
-        return peaks, "manual_override"
-    return {}, "unconfigured_peak"
+        return defaults, "manual_override"
+    return defaults, source
 
 
 def estimate_attention_flops(case: BenchmarkCase) -> float:

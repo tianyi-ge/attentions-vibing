@@ -170,7 +170,8 @@ Useful flags:
 - `--estimate-cpu-peak`
   Opt in to the lightweight CPU peak estimator for MFU on CPU runs.
 - `--peak-tflops-fp16/--peak-tflops-bf16/--peak-tflops-fp32`
-  Manually override the theoretical peak used for MFU.
+  Manually override the theoretical peak used for MFU. These values take
+  precedence over device defaults.
 
 ## Profiling
 
@@ -282,4 +283,17 @@ based on:
 This is intentionally approximate. It is useful for rough comparison, but it
 is not a substitute for a carefully validated hardware peak model.
 
-For non-CPU runs, MFU is also `na` unless you pass explicit peak TFLOPS overrides.
+For RTX 5090 CUDA runs, MFU uses built-in default peak TFLOPS when you do not
+pass explicit overrides:
+
+- `fp32`: `104.8 TFLOPS`
+- `fp16`: `419.0 TFLOPS`
+- `bf16`: `419.0 TFLOPS`
+
+The `fp32` value is based on the published CUDA core count and boost clock. The
+`fp16` and `bf16` values are dense Tensor Core estimates for attention MFU. They
+intentionally do not use the larger marketing AI TOPS number, which may include
+lower-precision or sparsity assumptions.
+
+For other non-CPU devices, MFU is `na` unless you pass explicit peak TFLOPS
+overrides.

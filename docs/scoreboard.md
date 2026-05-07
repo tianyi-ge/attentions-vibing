@@ -114,28 +114,51 @@ tl.dot(p, v)
 
 #### NCU Notes
 
-For the original heavier configuration:
+S=8192 fp16 NCU comparison between v1 and v2:
 
-- `Achieved Occupancy`: `8.32%`
-- `Registers / Thread`: `255`
-- `Dynamic Shared Memory / Block`: `99.33 KB`
+Command:
 
-For the lighter `32 x 32` configuration:
+```bash
+bash scripts/profile_ncu.sh online_softmax_fwd_v2 8192 8192 128 fp16 4 32 5 20 online_softmax_attn_fwd_kernel_v2
+```
 
-- `Achieved Occupancy`: `16%`
-- `Registers / Thread`: `128`
-- `Dynamic Shared Memory / Block`: `45.57 KB`
+| Metric | v1 | v2 |
+| --- | ---: | ---: |
+| Duration | `51.31 ms` | `32.45 ms` |
+| Compute throughput | `36.64%` | `51.61%` |
+| Memory throughput | `24.23%` | `76.29%` |
+| DRAM throughput | `1.23%` | `1.90%` |
+| L2 hit rate | `98.38%` | `99.20%` |
+| Tensor pipeline | `36.9%` | `39.0%` |
+| Issue slots busy | `16.60%` | `26.46%` |
+| Achieved occupancy | `8.33%` | `24.87%` |
+| Active warps / SM | `4.00` | `11.94` |
+| Active warps / scheduler | `1.00` | `2.99` |
+| Eligible warps / scheduler | `0.17` | `0.35` |
+| No eligible | `83.40%` | `73.52%` |
+| Registers / thread | `255` | `122` |
+| Dynamic shared memory / block | `99.33 KB` | `26.62 KB` |
+| Block limit by registers | `2` | `4` |
+| Block limit by shared memory | `1` | `3` |
+| Theoretical occupancy | `8.33%` | `25.00%` |
+| Shared store bank-conflict wavefronts | n/a | `14.64%` |
+| Executed instructions | `11.60B` | `11.67B` |
+| Non-fused FP32 instructions | `2.26B` | `3.17B` |
+| Grid size | `16,384` | `32,768` |
+| Waves / SM | `96.38` | `64.25` |
 
 Interpretation:
 
-- The kernel is resource-limited before it is DRAM-bandwidth-limited
-- Shrinking the block reduced both register pressure and shared-memory usage
-- `BLOCK_QM` is more sensitive than `BLOCK_KN` in this kernel
-- `32 x 32` with `4` warps and `2` stages is the current best default for `v2`
-- `P @ V` should use the input value dtype for the dot operand; keeping it fp32 leaves too much tensor-core throughput on the table
+- v2 is faster mainly because resource usage dropped: shared memory per block fell from `99.33 KB` to `26.62 KB`, raising the shared-memory block limit from `1` to `3`
+- Higher occupancy gives the schedulers more active and eligible warps, improving issue slots busy from `16.60%` to `26.46%`
+- DRAM throughput remains tiny in both versions, so the kernel is not HBM-bandwidth bound
+- v2 drives the L2/on-chip memory path much harder; Memory Throughput rises from `24.23%` to `76.29%`
+- The `P @ V` dtype optimization improves runtime even though total executed instructions are similar at S=8192; the important change is better instruction mix, resource usage, and scheduling
+- v2 still has low eligible warps (`0.35` per scheduler), so latency hiding and the online-softmax dependency chain remain major limits
 
 #### Next Questions
 
 - Can `32 x 32` be improved further without losing too much reuse?
-- Does the `P @ V` dtype optimization reduce FP32 instruction pressure in NCU as expected?
+- Can the online-softmax fp32 dependency chain be shortened or better overlapped?
+- Can shared-memory bank conflicts be reduced with a different tile/layout?
 - How much more can occupancy rise before performance stops improving?
