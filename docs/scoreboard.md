@@ -29,6 +29,7 @@ baseline on the same GPU, and keeps short tuning notes for each version.
 | `torch_sdpa_ref` | `0.012 ms` | `0.115 ms` | `1.376 ms` | `10.399 ms` | Baseline |
 | `online_softmax_fwd_v1` | `0.019 ms (0.66x)` | `0.173 ms (0.66x)` | `2.366 ms (0.58x)` | `18.173 ms (0.57x)` | Online-softmax baseline |
 | `online_softmax_fwd_v2` | `0.016 ms (0.80x)` | `0.111 ms (1.03x)` | `1.678 ms (0.82x)` | `13.157 ms (0.79x)` | Autotuned + low-precision `P @ V` |
+| `online_softmax_fwd_v3` | TBD | TBD | TBD | TBD | v2 + causal/sliding-window mask support |
 
 ## Correctness
 
@@ -36,6 +37,7 @@ baseline on the same GPU, and keeps short tuning notes for each version.
 | --- | --- | --- | --- | --- |
 | `online_softmax_fwd_v1` | pass | pass | pass | pass |
 | `online_softmax_fwd_v2` | pass | pass | pass | pass |
+| `online_softmax_fwd_v3` | TBD | TBD | TBD | TBD |
 
 ## Version Notes
 
@@ -163,3 +165,14 @@ Interpretation:
 - Can the online-softmax fp32 dependency chain be shortened or better overlapped?
 - Can shared-memory bank conflicts be reduced with a different tile/layout?
 - How much more can occupancy rise before performance stops improving?
+
+### `online_softmax_fwd_v3`
+
+- Goal:
+  - Add mask support on top of the optimized v2 forward path
+- Main optimizations:
+  - Reuses v2 defaults: `32 x 32`, `4` warps, `2` stages
+  - Keeps `QK^T` and online-softmax state in fp32 where needed
+  - Applies boundary, causal, and sliding-window masks before the online softmax update
+- Notes:
+  - Causal and sliding-window support are functional additions; benchmark numbers are TBD

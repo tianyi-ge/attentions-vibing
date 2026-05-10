@@ -8,7 +8,13 @@ from attentions.operators.reference import naive_sdpa_reference, torch_sdpa_refe
 from attentions.registry import OperatorRegistry, RuntimeOperator
 
 
-IMPLEMENTED_IDS = {"torch_sdpa_ref", "naive_sdpa", "online_softmax_fwd_v1", "online_softmax_fwd_v2"}
+IMPLEMENTED_IDS = {
+    "torch_sdpa_ref",
+    "naive_sdpa",
+    "online_softmax_fwd_v1",
+    "online_softmax_fwd_v2",
+    "online_softmax_fwd_v3",
+}
 
 
 def _resolve_fn(operator_id: str):
@@ -32,6 +38,14 @@ def _resolve_fn(operator_id: str):
         if not torch.cuda.is_available():
             return unavailable_operator, False, "online_softmax_fwd_v2 requires a CUDA runtime"
         return online_softmax_attention_forward_v2, True, "forked v2 Triton online-softmax attention forward kernel"
+    if operator_id == "online_softmax_fwd_v3":
+        try:
+            from attentions.operators.online_softmax_fwd_v3 import online_softmax_attention_forward_v3
+        except Exception as exc:
+            return unavailable_operator, False, f"failed to import Triton kernel: {exc}"
+        if not torch.cuda.is_available():
+            return unavailable_operator, False, "online_softmax_fwd_v3 requires a CUDA runtime"
+        return online_softmax_attention_forward_v3, True, "v3 Triton online-softmax attention forward kernel with mask support"
     return unavailable_operator, False, "placeholder only; implementation will be added in a later stage"
 
 

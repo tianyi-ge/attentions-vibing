@@ -13,18 +13,25 @@ from torch.profiler import ProfilerActivity, profile
 
 from attentions.operators.online_softmax_fwd_v1 import online_softmax_attention_forward_v1
 from attentions.operators.online_softmax_fwd_v2 import online_softmax_attention_forward_v2
+from attentions.operators.online_softmax_fwd_v3 import online_softmax_attention_forward_v3
 from attentions.operators.reference import torch_sdpa_reference
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Profile torch SDPA vs Triton online softmax attention.")
-    parser.add_argument("--operator", choices=["torch_sdpa_ref", "online_softmax_fwd_v1", "online_softmax_fwd_v2"], required=True)
+    parser.add_argument(
+        "--operator",
+        choices=["torch_sdpa_ref", "online_softmax_fwd_v1", "online_softmax_fwd_v2", "online_softmax_fwd_v3"],
+        required=True,
+    )
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--heads", type=int, default=32)
     parser.add_argument("--seq-q", type=int, default=128)
     parser.add_argument("--seq-k", type=int, default=128)
     parser.add_argument("--head-dim", type=int, default=128)
     parser.add_argument("--dtype", choices=["fp16", "bf16"], default="fp16")
+    parser.add_argument("--causal", action="store_true")
+    parser.add_argument("--window-size", type=int, default=0)
     parser.add_argument("--warmup", type=int, default=5)
     parser.add_argument("--steps", type=int, default=20)
     parser.add_argument("--sort-by", default="self_cuda_time_total")
@@ -46,13 +53,25 @@ def make_tensors(args: argparse.Namespace) -> tuple[torch.Tensor, torch.Tensor, 
     return q, k, v
 
 
-def run_operator(name: str, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+def run_operator(
+    name: str,
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    *,
+    causal: bool,
+    window_size: int,
+) -> torch.Tensor:
     if name == "torch_sdpa_ref":
-        return torch_sdpa_reference(q, k, v, causal=False)
+        if window_size:
+            raise ValueError("torch_sdpa_ref profiler path does not support sliding-window masks.")
+        return torch_sdpa_reference(q, k, v, causal=causal)
     if name == "online_softmax_fwd_v1":
-        return online_softmax_attention_forward_v1(q, k, v, causal=False)
+        return online_softmax_attention_forward_v1(q, k, v, causal=causal, window_size=window_size)
     if name == "online_softmax_fwd_v2":
-        return online_softmax_attention_forward_v2(q, k, v, causal=False)
+        return online_softmax_attention_forward_v2(q, k, v, causal=causal, window_size=window_size)
+    if name == "online_softmax_fwd_v3":
+        return online_softmax_attention_forward_v3(q, k, v, causal=causal, window_size=window_size)
     raise ValueError(f"Unsupported operator: {name}")
 
 
@@ -64,7 +83,7 @@ def main() -> None:
     q, k, v = make_tensors(args)
 
     for _ in range(args.warmup):
-        out = run_operator(args.operator, q, k, v)
+        out = run_operator(args.operator, q, k, v, causal=args.causal, window_size=args.window_size)
         del out
     torch.cuda.synchronize()
 
@@ -75,7 +94,7 @@ def main() -> None:
         with_stack=False,
     ) as prof:
         for _ in range(args.steps):
-            out = run_operator(args.operator, q, k, v)
+            out = run_operator(args.operator, q, k, v, causal=args.causal, window_size=args.window_size)
             del out
         torch.cuda.synchronize()
 
@@ -89,6 +108,7 @@ def main() -> None:
     stem = (
         f"{args.operator}_b{args.batch_size}_h{args.heads}_"
         f"sq{args.seq_q}_sk{args.seq_k}_d{args.head_dim}_{args.dtype}"
+        f"_causal{int(args.causal)}_w{args.window_size}"
     )
     table_path = args.output_dir / f"{stem}.txt"
     trace_path = args.output_dir / f"{stem}.json"

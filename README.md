@@ -54,16 +54,18 @@ Current runnable operators:
 
 - `torch_sdpa_ref`
 - `naive_sdpa`
-
-The remaining operator ids are registered as placeholders so you can add a new
-kernel without changing the surrounding harness.
+- `online_softmax_fwd_v1`
+- `online_softmax_fwd_v2`
+- `online_softmax_fwd_v3`
 
 Current online-softmax status:
 
 - `online_softmax_fwd_v1`
   Archived v1 baseline
 - `online_softmax_fwd_v2`
-  Active fork for optimization work
+  Autotuned dense forward kernel with low-precision `P @ V`
+- `online_softmax_fwd_v3`
+  Active fork with causal and sliding-window mask support
 
 ## Quick Start
 
@@ -228,6 +230,8 @@ Positional arguments are:
 8. `warmup` (optional, default `5`)
 9. `steps` (optional, default `20`)
 10. `kernel_name` (optional, default empty)
+11. `causal` (optional, `1` enables causal mask, default `0`)
+12. `window_size` (optional, default `0`)
 
 Example with an explicit kernel filter:
 
@@ -237,11 +241,11 @@ bash scripts/profile_ncu.sh online_softmax_fwd_v1 512 512 128 fp16 4 32 5 20 onl
 
 ## Autotuning
 
-Sweep `online_softmax_fwd_v2` launch parameters and write a ranked CSV:
+Sweep the latest online-softmax launch parameters and write a ranked CSV:
 
 ```bash
 python scripts/autotune_online_softmax.py \
-  --operator online_softmax_fwd_v2 \
+  --operator online_softmax_fwd_v3 \
   --dtype fp16 \
   --seq-q 512 \
   --seq-k 512 \
@@ -253,7 +257,7 @@ python scripts/autotune_online_softmax.py \
 ```
 
 The default operator is the latest online-softmax version, currently
-`online_softmax_fwd_v2`. The results are written to
+`online_softmax_fwd_v3`. The results are written to
 `benchmarks/results/autotune_online_softmax.csv`. For fp8 input experiments,
 run the same sweep with `--dtype fp8`; the script uses fp8 Q/K/V inputs and
 fp16 output for correctness comparison.

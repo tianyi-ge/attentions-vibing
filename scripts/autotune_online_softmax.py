@@ -16,8 +16,8 @@ import torch
 from attentions.operators.reference import torch_sdpa_reference
 
 
-DEFAULT_OPERATOR = "online_softmax_fwd_v2"
-SUPPORTED_OPERATORS = ("online_softmax_fwd_v1", "online_softmax_fwd_v2")
+DEFAULT_OPERATOR = "online_softmax_fwd_v3"
+SUPPORTED_OPERATORS = ("online_softmax_fwd_v1", "online_softmax_fwd_v2", "online_softmax_fwd_v3")
 DTYPES = {
     "fp16": torch.float16,
     "bf16": torch.bfloat16,
@@ -125,6 +125,10 @@ def resolve_operator(operator: str):
         from attentions.operators.online_softmax_fwd_v2 import online_softmax_attention_forward_v2
 
         return online_softmax_attention_forward_v2
+    if operator == "online_softmax_fwd_v3":
+        from attentions.operators.online_softmax_fwd_v3 import online_softmax_attention_forward_v3
+
+        return online_softmax_attention_forward_v3
     raise ValueError(f"Unsupported operator: {operator}")
 
 

@@ -14,7 +14,9 @@ BATCH_SIZE="${6:-4}"
 HEADS="${7:-32}"
 WARMUP="${8:-5}"
 STEPS="${9:-20}"
-KERNEL_NAME="${10:-online_softmax_attn_fwd_kernel}"
+KERNEL_NAME="${10:-}"
+CAUSAL="${11:-0}"
+WINDOW_SIZE="${12:-0}"
 
 mkdir -p "${OUT_DIR}"
 
@@ -38,17 +40,26 @@ if [[ -n "${KERNEL_NAME}" ]]; then
   NCU_ARGS+=(--kernel-name "${KERNEL_NAME}")
 fi
 
+PROFILE_ARGS=(
+  --operator "${OPERATOR}"
+  --batch-size "${BATCH_SIZE}"
+  --heads "${HEADS}"
+  --seq-q "${SEQ_Q}"
+  --seq-k "${SEQ_K}"
+  --head-dim "${HEAD_DIM}"
+  --dtype "${DTYPE}"
+  --warmup "${WARMUP}"
+  --steps "${STEPS}"
+  --window-size "${WINDOW_SIZE}"
+)
+
+if [[ "${CAUSAL}" == "1" ]]; then
+  PROFILE_ARGS+=(--causal)
+fi
+
 ncu \
   "${NCU_ARGS[@]}" \
   python "${ROOT_DIR}/scripts/profile_attention.py" \
-    --operator "${OPERATOR}" \
-    --batch-size "${BATCH_SIZE}" \
-    --heads "${HEADS}" \
-    --seq-q "${SEQ_Q}" \
-    --seq-k "${SEQ_K}" \
-    --head-dim "${HEAD_DIM}" \
-    --dtype "${DTYPE}" \
-    --warmup "${WARMUP}" \
-    --steps "${STEPS}"
+    "${PROFILE_ARGS[@]}"
 
 ncu --import "${REPORT_PATH}.ncu-rep" --page details > "${DETAILS_PATH}"
